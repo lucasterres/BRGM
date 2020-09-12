@@ -1,0 +1,331 @@
+var dataset = ee.Image('NOAA/NGDC/ETOPO1');
+var aw3d30x = dataset.select('bedrock');
+
+//////// PRAIAS DRONES //////////
+
+var bujuru = ee.Image('users/lucasterres/bujuruGEE');
+var cassino = ee.Image('users/lucasterres/cassinoGEE');
+var chui = ee.Image('users/lucasterres/chuiGEE');
+var concheiros = ee.Image('users/lucasterres/concheirosGEE');
+var curumim = ee.Image('users/lucasterres/curumimGEE');
+var dunasaltas = ee.Image('users/lucasterres/dunasaltasGEE');
+var hermena = ee.Image('users/lucasterres/hermenaGEE');
+var saritas = ee.Image('users/lucasterres/saritasGEE');
+var tramandai = ee.Image('users/lucasterres/tramandaiGEE');
+var verga = ee.Image('users/lucasterres/vergaGEE');
+var albatroz = ee.Image('users/lucasterres/albatrozGEE');
+var cidreira = ee.Image('users/lucasterres/cidreiraGEE');
+
+//////////////// BATIMETRIAS ////////////////
+
+var batcngebco = ee.Image('users/lucasterres/GBCOCN_GEE');
+var batsmc =  ee.Image('users/lucasterres/BAT_SMC_GEE_FINAL');
+var batsms2 =  ee.Image('users/lucasterres/BAT_SMC_GEE_FINAL');
+
+
+var aw3d30x2 = aw3d30x.select(
+    ['bedrock'], // old names
+    ['b1']               // new names
+);
+
+
+
+
+////////////// MOSAICO /////////////////
+
+
+var mosaic1 = ee.ImageCollection([batsmc,aw3d30x2]).mosaic();
+
+//////////////////PARAMETROS EQUAÇÕES BRUNN//////////////////////
+//////////////////PARAMETROS EQUAÇÕES BRUNN//////////////////////
+//////////////////PARAMETROS EQUAÇÕES BRUNN//////////////////////
+
+
+////PARAMETROS SEDIMENTO LONG/CROSS//////////
+var fcross = 0.1;
+var flong = 0.5;
+////////////////NÍVEL DO MAR////////////////////////
+var sealevel = 1.30;
+/////////////ROSATI/////////////////
+var Vd = 0.040;
+/////////////////////////////////////////
+/////////////////////////////////////////
+
+//////////////////PARAMETROS EQUAÇÕES BRUNN//////////////////////
+//////////////////PARAMETROS EQUAÇÕES BRUNN//////////////////////
+//////////////////PARAMETROS EQUAÇÕES BRUNN//////////////////////
+
+
+
+
+//////////////PARAMETROS PARA CORTE E APLICAÇÃO ////////////////
+//////////////PARAMETROS PARA CORTE E APLICAÇÃO ////////////////
+//////////////PARAMETROS PARA CORTE E APLICAÇÃO ////////////////
+
+var bufferfirst = geometry.buffer(500);
+
+var clipx = mosaic1.clip(bufferfirst);
+
+//var mosaic5 = mosaic1.clipToBoundsAndScale(bufferfirst,null,null,null,5);
+
+//Ativar toda a imagem
+var mosaic = mosaic1.reproject('EPSG:3857', null,30);
+
+//var mosaic = ee.reduceRegions(mosaic1,'b1',clipx,1);
+//var mosaic = mosaic4.reduce(ee.Reducer.firstNonNull());
+
+//var mosaic = mosaic1.reduceRegion(ee.Reducer.first(),bufferfirst,1);
+
+//Ativar somente o corte no buffer
+//var mosaic = clipx.reproject('EPSG:3857', null,4);
+
+
+/////////////SLOPE ANALISE///////////
+var slope = ee.Terrain.slope(mosaic);
+
+
+
+//////////////PARAMETROS PARA CORTE E APLICAÇÃO ////////////////
+//////////////PARAMETROS PARA CORTE E APLICAÇÃO ////////////////
+//////////////PARAMETROS PARA CORTE E APLICAÇÃO ////////////////
+
+
+
+
+/////////////////////////////////////
+/////////////VISUAL//////////////////
+/////////////////////////////////////
+
+var slopestyle = {
+  min: 0.0,
+  max: 1.9,
+  palette: ['00ad1d', '61ff00', 'd7ff00', 'ffc800', 'ff8100','ff0000'],
+}; 
+
+
+var elevationVis = {
+  min: -50,
+  max: 5,
+  palette: ['00ad1d', '61ff00', 'd7ff00', 'ffc800', 'ff8100','ff0000'],
+}; 
+
+var topobatimetriavis = {
+  min: -1,
+  max: 10,
+  palette: ['00ad1d', '61ff00', 'd7ff00', 'ffc800', 'ff8100','ff0000'],
+}; 
+
+/////////////////////////////////////
+/////////////////////////////////////
+
+////////////////PROCESSAMENTO///////////////////////
+////////////////PROCESSAMENTO///////////////////////
+
+
+var Berm_point = ee.Geometry.Point(geometry.coordinates().get(0));
+var Close_point = ee.Geometry.Point(geometry.coordinates().get(1));
+
+var Berm_point_Num = ee.Number(Berm_point);
+var Close_point_Num = ee.Number(Close_point);
+
+print(Close_point_Num);
+print(Berm_point_Num);
+
+// Extract the data
+var Berm = mosaic
+.reduceRegion(ee.Reducer.first(),Berm_point_Num,1);
+
+var BermNum = ee.Number(Berm.get('b1'));
+
+
+var Close = mosaic
+.reduceRegion(ee.Reducer.first(),Close_point_Num,1);
+
+var CloseNum = ee.Number(Close.get('b1'));
+
+
+
+
+
+// Add reducer output to the Features in the collection.
+var angulo = slope.reduceRegion({
+  reducer: ee.Reducer.mean(),
+  geometry: geometry,
+  scale: 30,
+  maxPixels: 1e9
+});
+
+var comprimentoW = geometry.length();
+
+var Wnumber = ee.Number(comprimentoW);
+
+
+
+///print(angulo);
+
+var angleresult1 = angulo.get("slope");
+
+//print(teste2);
+
+////////////////PROCESSAMENTO///////////////////////
+
+var angleresult = ee.Number(angleresult1);
+
+
+
+
+///////////////////////CALCULOS/////////////////////////////
+///////////////////////CALCULOS/////////////////////////////
+///////////////////////CALCULOS/////////////////////////////
+
+
+
+//var anglegrades1 = angleresult.multiply(180*NumPI);
+
+//var anglegrades = angleresult.multiply(100);
+
+var anglegrades = angleresult.divide(180).multiply(Math.PI).sin();
+
+
+var angletan = ee.Number(anglegrades).tan();
+
+
+
+//Simple Bruun (1962)
+var simple = ee.Number(sealevel).divide(angletan);
+
+
+//fcross-shore and flongshore are the contributions of other processes
+//causing losses or gains of sediments in the active beach profile. (m/yr)
+//1S = 1?/tan(ß) + fcross-shore + flongshore
+//s (e.g., Cowell et al., 2003b; Stive, 2004;
+//Yates et al., 2011; Aagaard and Sørensen, 2013; Anderson et al.,
+//2015):
+
+
+var addshore = ee.Number(sealevel).divide((angletan.add(ee.Number(fcross)).add(ee.Number(flong))));
+
+
+// o Rosati et al. (2013) // Laboratory investigation of the Bruun Rule and beach response to sea level rise
+
+var Rosati = (ee.Number(-sealevel).multiply(Wnumber).add(ee.Number(Vd))).divide(BermNum.add(CloseNum));
+
+
+//(SLR*W+Vd)/(B+h)
+//SLR*((w+Vd/SLR)/B+h)
+
+var Rosati_result = ee.Number(Rosati);
+
+
+
+
+var SimpleBrEq = ee.Number(-sealevel).multiply((Wnumber.divide((CloseNum.add(BermNum)))));
+
+
+//-SLR(w/h+b)
+
+
+
+///////////////////////FIM CALCULOS/////////////////////////////
+///////////////////////FIM CALCULOS/////////////////////////////
+///////////////////////FIM CALCULOS/////////////////////////////
+
+
+
+
+///////////////////////BUFFERS/////////////////////////////
+///////////////////////BUFFERS/////////////////////////////
+///////////////////////BUFFERS/////////////////////////////
+
+
+// Compute a buffer of the polygon.
+var buffersimple = geometry.buffer(simple);
+
+var buffershore = geometry.buffer(addshore);
+
+var bufferRosati = geometry.buffer(Rosati_result);
+
+var bufferNormal = geometry.buffer(SimpleBrEq);
+
+//var calc = ee.Number(sealevel).divide(ee.Number(angleresult).tan());
+
+///////////////////////BUFFERS/////////////////////////////
+///////////////////////BUFFERS/////////////////////////////
+///////////////////////BUFFERS/////////////////////////////
+
+
+
+
+
+
+///////////////////////IMPRESSÃO/////////////////////////////
+///////////////////////IMPRESSÃO/////////////////////////////
+///////////////////////IMPRESSÃO/////////////////////////////
+
+
+//////PARAMETROS RESULTADOS///////
+
+
+
+print('Altura Berma',BermNum);
+print('Profundidade de Fecho',CloseNum);
+print ('angulo',anglegrades);
+print('Comprimento W (m)', Wnumber);
+
+
+
+/// EQUAÇÕES RESULTADOS//////
+print ('Media',anglegrades);
+print('Bruun Simples', simple);
+print('Bruun com sedimento Lonf/Cross', addshore);
+print('Rosati Bruun' , Rosati_result);
+print ('Bruun Simples Equação Normal',SimpleBrEq);
+
+
+
+// BUFFERS RESULTS
+Map.addLayer(mosaic, elevationVis, 'mosaic',0);
+Map.addLayer(buffersimple, elevationVis, 'Simple Bruun',0);
+Map.addLayer(buffershore, elevationVis, 'Cross/Longshore Bruun',0);
+Map.addLayer(bufferRosati, elevationVis, 'Rosati Buffer',0);
+Map.addLayer(bufferNormal, elevationVis, 'Normal Brunn',0);
+
+
+//////////DECLIVES///////////////////
+
+var slopeCNGBCO = batcngebco.reproject('EPSG:3857', null,300);
+var slopeCNGBCO2 = ee.Terrain.slope(slopeCNGBCO);
+Map.addLayer(slopeCNGBCO2, slopestyle, 'slopeCNGBCO',0);
+
+var slopebatsmc = batsmc.reproject('EPSG:3857', null,300);
+var slopebatsmc2 = ee.Terrain.slope(slopebatsmc);
+Map.addLayer(slopebatsmc2, slopestyle, 'slopebatsmc',0); 
+
+
+var slopealbatroz = ee.Terrain.slope(albatroz);
+Map.addLayer(slopealbatroz, slopestyle, 'slopealbatroz',0);
+
+
+//PRINCIPAL ANALISE///////
+Map.addLayer(slope, slopestyle, 'SLOPE ANÁLISE',0);
+
+
+
+//////////////////BATIMETRIA//////////////////
+
+
+Map.addLayer(batcngebco, elevationVis, 'batcngebco',0);
+
+Map.addLayer(batsmc, elevationVis, 'batsmc',0);
+
+Map.addLayer(mosaic, topobatimetriavis, 'MOSAICOS TOPOBATIMÉTRICO',0);
+
+
+//////////W////////////
+
+Map.addLayer(table, elevationVis, 'W',0);
+
+
+///////////////////////IMPRESSÃO/////////////////////////////
+///////////////////////IMPRESSÃO/////////////////////////////
+///////////////////////IMPRESSÃO/////////////////////////////
